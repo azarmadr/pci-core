@@ -321,7 +321,7 @@ par_io    <=  PAR_out     when PAR_en     = BUF_OE else 'Z';
 perr_io   <=  PERR_out    when PERR_en    = BUF_OE else 'Z';
 serr_io   <=  SERR_out    when SERR_en    = BUF_OE else 'Z';
 
-req_o     <= 'Z'; -- not used in GUEST
+--req_o     <= 'Z'; -- not used in GUEST
 
 
 busmode_io(3 downto 1)  <= (others => 'Z'); -- only used as inputs
