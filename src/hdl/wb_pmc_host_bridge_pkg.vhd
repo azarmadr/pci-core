@@ -50,14 +50,8 @@ package wb_pmc_host_bridge_pkg is
       -- PCI signals (required) - error reporting
       perr_io       : inout std_logic;
       serr_io       : inout std_logic;
-      -- PCI signals (required) - arbitration
-      req_o         : out   std_logic;
-      gnt_i         : in    std_logic;
       -- PCI signals (optional) - interrupts pins
-      inta_o        : out   std_logic;
-      intb_o        : out   std_logic;
-      intc_o        : out   std_logic;
-      intd_o        : out   std_logic
+      inta_o        : out   std_logic
     );
   end component;
   
