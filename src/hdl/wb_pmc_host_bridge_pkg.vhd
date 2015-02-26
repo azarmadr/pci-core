@@ -11,7 +11,12 @@ use work.genram_pkg.all;
 
 -- package declaration
 package wb_pmc_host_bridge_pkg is
+
+
   component wb_pmc_host_bridge
+    generic(
+      g_family   : string := "Arria V";
+      g_sdb_addr : t_wishbone_address);
     port (
       -- FPGA signals
       clk_sys_i     : in  std_logic;
