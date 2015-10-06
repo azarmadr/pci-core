@@ -126,7 +126,7 @@
         `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
 //        `define WB_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
 //        `define PCI_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
-          `define ALTERA_ARRIA_V_DPRAM
+//          `define ALTERA_ARRIA_V_DPRAM
     `endif
 `else
     `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
