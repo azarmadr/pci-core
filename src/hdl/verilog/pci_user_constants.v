@@ -108,6 +108,7 @@
 //`define XILINX
 `define ALTERA
 
+
 `define WB_RAM_DONT_SHARE
 `define PCI_RAM_DONT_SHARE
 
@@ -123,8 +124,9 @@
     `ifdef ALTERA
         `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
         `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-        `define WB_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
-        `define PCI_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
+//        `define WB_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
+//        `define PCI_CYCLONEII_DPRAM		// Select CYCLONEII Dual Port Memory	
+          `define ALTERA_ARRIA_V_DPRAM
     `endif
 `else
     `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
@@ -156,7 +158,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define PCI_NUM_OF_DEC_ADDR_LINES 8
+`define PCI_NUM_OF_DEC_ADDR_LINES 20
 
 // no. of PCI Target IMAGES
 // - PCI provides 6 base address registers for image implementation.
@@ -185,12 +187,12 @@
 // won't detect base address implemented and device dependent software will have to configure
 // address masks as well as base addresses!
 // Don't define PCI_AMx to 24'hffff_ff for memory images! Use that just for I/O images.
-`define PCI_AM0 24'hff00_f0
-`define PCI_AM1 24'h7fff_f0
+`define PCI_AM0 24'hffff_f0
+`define PCI_AM1 24'hffff_f0
 `define PCI_AM2 24'hff00_00
-`define PCI_AM3 24'h7fff_f0
-`define PCI_AM4 24'hff00_00
-`define PCI_AM5 24'h7fff_f0
+`define PCI_AM3 24'hffff_f0
+`define PCI_AM4 24'hffff_f0
+`define PCI_AM5 24'hffff_f0
 
 // initial value for PCI image maping to MEMORY or IO spaces.  If initial define is set to 0,
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
@@ -205,16 +207,16 @@
 // initial value for PCI translation addresses. The  initial values
 // are set after reset. When ADDR_TRAN_IMPL is defined then then Images 
 // are transleted to this adresses whithout access to pci_ta registers.
-`define PCI_TA0 24'h0000_0
-`define PCI_TA1 24'h0100_0
-`define PCI_TA2 24'h0200_0
-`define PCI_TA3 24'h0000_0
-`define PCI_TA4 24'h0000_0
-`define PCI_TA5 24'h0000_0
+`define PCI_TA0 24'h0000_00
+`define PCI_TA1 24'h0100_00
+`define PCI_TA2 24'h0200_00
+`define PCI_TA3 24'h0000_00
+`define PCI_TA4 24'h0000_00
+`define PCI_TA5 24'h0000_00
 
 `define PCI_AT_EN0 1'b0
-`define PCI_AT_EN1 1'b0
-`define PCI_AT_EN2 1'b0
+`define PCI_AT_EN1 1'b1
+`define PCI_AT_EN2 1'b1
 `define PCI_AT_EN3 1'b0
 `define PCI_AT_EN4 1'b0
 `define PCI_AT_EN5 1'b0
@@ -231,15 +233,15 @@
 // ( both GUEST and NO_CNF_IMAGE defined ), then WB image 0 is not implemented. User doesn't need to define image 0.
 // WB Image 1 is always implemented and user doesnt need to specify its definition
 // WB images' 2 through 5 implementation by defining each one.
-`define WB_IMAGE2
+//`define WB_IMAGE2
 //`define WB_IMAGE3
 //`define WB_IMAGE4
 //`define WB_IMAGE5
 
 //Address bar register defines the base address for each image.
 //To asccess bus without Software configuration.
-`define  WB_BA1	20'h0100_0
-`define  WB_BA2	20'h0200_0
+`define  WB_BA1	20'hfee0_1
+`define  WB_BA2	20'h3810_0
 `define  WB_BA3	20'h3820_0
 `define  WB_BA4	20'h3830_0
 `define  WB_BA5	20'h3840_0
@@ -253,9 +255,9 @@
 `define  WB_BA5_MEM_IO	1'b0  
 
 // initial value for WB image address masks. 
-`define  WB_AM1 20'hff00_0
-`define  WB_AM2 20'hff00_0
-`define  WB_AM3 20'h7fff_0
+`define  WB_AM1 20'hffff_f
+`define  WB_AM2 20'h7f00_0
+`define  WB_AM3 20'h7ff0_0
 `define  WB_AM4 20'h7ff0_0
 `define  WB_AM5 20'h7ff0_0
 
@@ -268,18 +270,18 @@
 `define WB_AT_EN4 1'b0
 `define WB_AT_EN5 1'b0
 
-`define WB_TA1 20'h0100_0
-`define WB_TA2 20'h0200_0
-`define WB_TA3 20'h0300_0
-`define WB_TA4 20'h0400_0
-`define WB_TA5 20'h0500_0
+`define WB_TA1 20'h0400_0
+`define WB_TA2 20'h0800_0
+`define WB_TA3 20'h0000_0
+`define WB_TA4 20'h0000_0
+`define WB_TA5 20'h0000_0
 
 
 // If this define is commented out, then address translation will not be implemented.
 // addresses will pass through bridge unchanged, regardles of address translation enable bits.
 // Address translation also slows down the decoding
 //When  ADDR_TRAN_IMPL this define is present then adress translation is enabled after reset.
-//`define ADDR_TRAN_IMPL
+`define ADDR_TRAN_IMPL
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow.
 // slower decode speed can be used, to provide enough time for address to be decoded.
@@ -316,8 +318,8 @@ capable device
 //`define HEADER_MAX_LAT          8'h1a
 //`define HEADER_MIN_GNT          8'h08
 
-`define HEADER_VENDOR_ID        16'h10dc
-`define HEADER_DEVICE_ID        16'hbeef
+`define HEADER_VENDOR_ID        16'h10dc // CERN
+`define HEADER_DEVICE_ID        16'hc570
 `define HEADER_REVISION_ID      8'h01
 `define HEADER_SUBSYS_VENDOR_ID 16'h10dc
 `define HEADER_SUBSYS_ID        16'hbeef
@@ -335,6 +337,9 @@ capable device
 
 `define PCI_WB_REV_B3
 //`define PCI_WBS_B3_RTY_DISABLE
+
+// enables MSI capabitlity for triggering interrupts
+`define MSI_CAPABILITY_EN
 
 `ifdef GUEST
 //    `define PCI_CPCI_HS_IMPLEMENT

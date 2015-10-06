@@ -141,18 +141,24 @@ module pci_conf_space
 					// input to interrupt status register
 					isr_sys_err_int, isr_par_err_int, isr_int_prop,
 
-                    pci_init_complete_out, wb_init_complete_out
+          pci_init_complete_out, wb_init_complete_out
+          
+          // MSI address and message register output
+          `ifdef MSI_CAPABILITY_EN
+              ,
+              msi_control, msi_address, msi_msg_data,
+          `endif
 
-                `ifdef PCI_CPCI_HS_IMPLEMENT
-                    ,
-                    pci_cpci_hs_enum_oe_o, pci_cpci_hs_led_oe_o, pci_cpci_hs_es_i
-                `endif
+        `ifdef PCI_CPCI_HS_IMPLEMENT
+            ,
+            pci_cpci_hs_enum_oe_o, pci_cpci_hs_led_oe_o, pci_cpci_hs_es_i
+        `endif
 
-                `ifdef PCI_SPOCI
-                    ,
-                    spoci_scl_oe_o, spoci_sda_i, spoci_sda_oe_o
-                `endif
-                ) ;
+        `ifdef PCI_SPOCI
+            ,
+            spoci_scl_oe_o, spoci_sda_i, spoci_sda_oe_o
+        `endif
+        ) ;
 
 
 /*###########################################################################################################
@@ -352,6 +358,23 @@ reg [10: 0] spoci_cs_adr   ;
 reg [ 7: 0] spoci_cs_dat   ;
 `endif
 
+// MSI registers outputs
+`ifdef MSI_CAPABILITY_EN
+
+  output  [31 : 0]				msi_control;
+  reg     [31 : 0]				r_msi_control;
+  assign msi_control  = r_msi_control;
+
+  output  [31 : 0]				msi_address;
+  reg     [31 : 0]				r_msi_address;
+  assign msi_address = r_msi_address;
+
+  output  [15 : 0]				msi_msg_data;
+  reg     [15 : 0]				r_msi_msg_data;
+  assign  msi_msg_data = r_msi_msg_data;
+  
+`endif
+
 /*###########################################################################################################
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	REGISTERS definition
@@ -360,7 +383,7 @@ reg [ 7: 0] spoci_cs_dat   ;
 ###########################################################################################################*/
 
 // Decoded Register Select signals for writting (only one address decoder)
-reg		[56 : 0]				w_reg_select_dec ;
+reg		[58 : 0]				w_reg_select_dec ;
 
 /*###########################################################################################################
 -------------------------------------------------------------------------------------------------------------
@@ -394,7 +417,9 @@ PCI CONFIGURATION SPACE HEADER (type 00h) registers
 			reg					status_bit8 ;
 			parameter			r_status_bit7 = 1'b1 ; // fast back-to-back capable response !!!
 			parameter			r_status_bit5 = `HEADER_66MHz ;   	// 1'b0 indicates 33 MHz capable !!!
+//			parameter			r_status_bit4 = `MSI_CAPABILITY_LIST;   // 1'b1 indicates MSI capability
 
+/*
 `ifdef PCI_CPCI_HS_IMPLEMENT
             wire                r_status_bit4 = 1   ;
             reg                 hs_ins              ;
@@ -408,6 +433,15 @@ PCI CONFIGURATION SPACE HEADER (type 00h) registers
 `else
             wire                r_status_bit4 = 0 ;
 `endif
+*/
+
+`ifdef MSI_CAPABILITY_EN 
+          wire                r_status_bit4 = 1 ;
+          wire    [ 7: 0]     msi_cap_id    = 8'h05;
+ `else
+          wire                r_status_bit4 = 0 ;
+ `endif
+
 
             reg     [ 7: 0]     r_revision_id   ;
 
@@ -862,6 +896,10 @@ end
     		wb_err_addr or wb_err_data or
     		cnf_addr_bit23_2 or cnf_addr_bit0 or icr_bit31 or icr_bit4_3 or icr_bit2_0 or isr_bit4_3 or isr_bit2_0
 
+      `ifdef MSI_CAPABILITY_EN // add readout of MSI registers
+          or r_msi_control or r_msi_address or r_msi_msg_data or msi_cap_id
+      `endif   
+/*        
         `ifdef PCI_CPCI_HS_IMPLEMENT
             or hs_ins or hs_ext or hs_pi or hs_loo or hs_eim or hs_cap_id
         `endif
@@ -869,13 +907,14 @@ end
         `ifdef PCI_SPOCI
             or spoci_cs_nack or spoci_cs_write or spoci_cs_read or spoci_cs_adr or spoci_cs_dat
         `endif
+*/        
     		)
     begin
     	case (r_conf_address_in[9:2])
     	// PCI header - configuration space
     	8'h0: r_conf_data_out = { r_device_id, r_vendor_id } ;
     	8'h1: r_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
-    								 4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
+    								 4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 1'b0, r_status_bit4, 1'b0, command_bit2_0 } ;
     	8'h2: r_conf_data_out = { r_class_code, r_revision_id } ;
     	8'h3: r_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
     	8'h4: 
@@ -936,19 +975,52 @@ end
         begin
             r_conf_data_out = {r_subsys_id, r_subsys_vendor_id} ;
         end
+        
+/*        
     `ifdef PCI_CPCI_HS_IMPLEMENT
         8'hD:
         begin
             r_conf_data_out = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
         end
     `endif
+*/    
+     // dslavinec - only MSI capability can be optionally used
+    `ifdef MSI_CAPABILITY_EN
+        8'hD:
+        begin
+            r_conf_data_out = {24'h0000_00, `P_MSI_CAP_PTR_VAL} ;
+        end
+    `endif
+
     	8'hf: r_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
+
+/*      
     `ifdef PCI_CPCI_HS_IMPLEMENT
         (`PCI_CAP_PTR_VAL >> 2):
         begin
             r_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
         end
     `endif
+*/
+
+    `ifdef MSI_CAPABILITY_EN // add readout of MSI registers
+        {2'b00, `P_MSI_MSG_CTRL}:
+        begin
+            r_conf_data_out = {r_msi_control[31:16], 8'h00, msi_cap_id};
+        end
+        {2'b00, `P_MSI_MSG_ADDR}:
+        begin
+            r_conf_data_out  = r_msi_address;
+        end
+        {2'b00, `P_MSI_MSG_DATA}:
+        begin
+            r_conf_data_out  = {16'h0000, r_msi_msg_data} ;
+        end
+    `endif
+    
+    
+    
+    
   		// PCI target - configuration space
     	{2'b01, `P_IMG_CTRL0_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
         {2'b01, `P_BA0_ADDR}	  : 
@@ -1233,6 +1305,11 @@ always@(w_conf_address or
 		wb_err_addr or wb_err_data or
 		cnf_addr_bit23_2 or cnf_addr_bit0 or icr_bit31 or icr_bit4_3 or icr_bit2_0 or isr_bit4_3 or isr_bit2_0
 
+    `ifdef MSI_CAPABILITY_EN // add readout of MSI registers
+        or r_msi_control or r_msi_address or r_msi_msg_data or msi_cap_id
+    `endif   
+    
+    /*
     `ifdef PCI_CPCI_HS_IMPLEMENT
         or hs_ins or hs_ext or hs_pi or hs_loo or hs_eim or hs_cap_id
     `endif
@@ -1240,29 +1317,31 @@ always@(w_conf_address or
     `ifdef PCI_SPOCI
         or spoci_cs_nack or spoci_cs_write or spoci_cs_read or spoci_cs_adr or spoci_cs_dat
     `endif
+*/
+    
 		)
 begin
 	case (w_conf_address[9:2])
 	8'h0:
 	begin
 		w_conf_data_out = { r_device_id, r_vendor_id } ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+		w_reg_select_dec = 59'h000_0000_0000_0000 ; // Read-Only register
 	end
 	8'h1: // w_reg_select_dec bit 0
 	begin
 		w_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
 	 					    4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_0001 ;
+		w_reg_select_dec = 59'h000_0000_0000_0001 ;
 	end
 	8'h2:
 	begin
 		w_conf_data_out = { r_class_code, r_revision_id } ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+		w_reg_select_dec = 59'h000_0000_0000_0000 ; // Read-Only register
 	end
 	8'h3: // w_reg_select_dec bit 1
 	begin
 		w_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
-		w_reg_select_dec = 57'h000_0000_0000_0002 ;
+		w_reg_select_dec = 59'h000_0000_0000_0002 ;
 	end
 	8'h4: // w_reg_select_dec bit 4
 	begin
@@ -1282,7 +1361,7 @@ begin
         w_conf_data_out[31:12] = pci_ba0_bit31_8[31:12] ;
         w_conf_data_out[11: 0] = 12'h000 ;
     `endif
-		w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_0010 ; // The same for another address
 	end
 	8'h5: // w_reg_select_dec bit 8
 	begin
@@ -1290,7 +1369,7 @@ begin
     														  pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-		w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_0100 ; // The same for another address
 	end
 	8'h6: // w_reg_select_dec bit 12
 	begin
@@ -1298,7 +1377,7 @@ begin
     														  pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-		w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_1000 ; // The same for another address
 	end
 	8'h7: // w_reg_select_dec bit 16
 	begin
@@ -1306,7 +1385,7 @@ begin
     														  pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-		w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0001_0000 ; // The same for another address
 	end
 	8'h8: // w_reg_select_dec bit 20
 	begin
@@ -1314,7 +1393,7 @@ begin
     														  pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-		w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0010_0000 ; // The same for another address
 	end
 	8'h9: // w_reg_select_dec bit 24
 	begin
@@ -1322,37 +1401,72 @@ begin
     														  pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-		w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0100_0000 ; // The same for another address
 	end
     8'hB:
     begin
         w_conf_data_out = {r_subsys_id, r_subsys_vendor_id} ;
-        w_reg_select_dec = 57'h000_0000_0000_0000 ;
+        w_reg_select_dec = 59'h000_0000_0000_0000 ;
     end
 
+/*    
 `ifdef PCI_CPCI_HS_IMPLEMENT
     8'hD:
     begin
         w_conf_data_out  = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
-        w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+        w_reg_select_dec = 59'h000_0000_0000_0000 ; // Read-Only register
     end
 `endif
+*/
+  `ifdef MSI_CAPABILITY_EN
+      8'hD:
+        begin
+            w_conf_data_out = {24'h0000_00, `P_MSI_CAP_PTR_VAL} ;
+            w_reg_select_dec = 59'h000_0000_0000_0000 ; // Read-Only register
+        end
+  `endif
+
+
 	8'hf: // w_reg_select_dec bit 2
 	begin
 		w_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
-		w_reg_select_dec = 57'h000_0000_0000_0004 ;
+		w_reg_select_dec = 59'h000_0000_0000_0004 ;
 	end
+  
+/*  
 `ifdef PCI_CPCI_HS_IMPLEMENT
     (`PCI_CAP_PTR_VAL >> 2):
     begin
-        w_reg_select_dec = 57'h100_0000_0000_0000 ;
+        w_reg_select_dec = 59'h100_0000_0000_0000 ;
         w_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
     end
 `endif
+*/
+  `ifdef MSI_CAPABILITY_EN // add readout of MSI registers
+      {2'b00, `P_MSI_MSG_CTRL}: // w_reg_select_dec bit 56
+      begin
+          w_conf_data_out  = {r_msi_control[31:16], 8'h00, msi_cap_id} ;
+          w_reg_select_dec = 59'h100_0000_0000_0000 ;
+      end
+      {2'b00, `P_MSI_MSG_ADDR}:  // w_reg_select_dec bit 57
+      begin
+          w_conf_data_out  = r_msi_address;
+          w_reg_select_dec = 59'h200_0000_0000_0000 ;
+      end
+      {2'b00, `P_MSI_MSG_DATA}: // w_reg_select_dec bit 58
+      begin
+          w_conf_data_out  = {16'h0000, r_msi_msg_data} ;
+          w_reg_select_dec = 59'h400_0000_0000_0000 ;
+      end
+  `endif
+
+
+
+
 	{2'b01, `P_IMG_CTRL0_ADDR}:  // w_reg_select_dec bit 3
 	begin
 		w_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_0008 ;
+		w_reg_select_dec = 59'h000_0000_0000_0008 ;
 	end
     {2'b01, `P_BA0_ADDR}:   // w_reg_select_dec bit 4
 	begin
@@ -1372,7 +1486,7 @@ begin
         w_conf_data_out[31:12] = pci_ba0_bit31_8[31:12] ;
         w_conf_data_out[11: 0] = 12'h000 ;
     `endif
-		w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_0010 ; // The same for another address
 	end
     {2'b01, `P_AM0_ADDR}:   // w_reg_select_dec bit 5
 	begin
@@ -1390,18 +1504,18 @@ begin
         w_conf_data_out[31:12] = pci_am0[31:12] ;
         w_conf_data_out[11: 0] = 12'h000        ;
     `endif
-		w_reg_select_dec = 57'h000_0000_0000_0020 ;
+		w_reg_select_dec = 59'h000_0000_0000_0020 ;
 	end
     {2'b01, `P_TA0_ADDR}:   // w_reg_select_dec bit 6
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0000_0040 ;
+		w_reg_select_dec = 59'h000_0000_0000_0040 ;
 	end
     {2'b01, `P_IMG_CTRL1_ADDR}:   // w_reg_select_dec bit 7
 	begin
 	    w_conf_data_out = { 29'h00000000, pci_img_ctrl1_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_0080 ;
+		w_reg_select_dec = 59'h000_0000_0000_0080 ;
 	end
     {2'b01, `P_BA1_ADDR}:   // w_reg_select_dec bit 8
 	begin
@@ -1409,24 +1523,24 @@ begin
     														  pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-		w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_0100 ; // The same for another address
 	end
     {2'b01, `P_AM1_ADDR}:   // w_reg_select_dec bit 9
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0000_0200 ;
+		w_reg_select_dec = 59'h000_0000_0000_0200 ;
 	end
     {2'b01, `P_TA1_ADDR}:   // w_reg_select_dec bit 10
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0000_0400 ;
+		w_reg_select_dec = 59'h000_0000_0000_0400 ;
 	end
     {2'b01, `P_IMG_CTRL2_ADDR}:   // w_reg_select_dec bit 11
 	begin
 	    w_conf_data_out = { 29'h00000000, pci_img_ctrl2_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_0800 ;
+		w_reg_select_dec = 59'h000_0000_0000_0800 ;
 	end
     {2'b01, `P_BA2_ADDR}:   // w_reg_select_dec bit 12
 	begin
@@ -1434,24 +1548,24 @@ begin
     														  pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-		w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0000_1000 ; // The same for another address
 	end
     {2'b01, `P_AM2_ADDR}:   // w_reg_select_dec bit 13
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0000_2000 ;
+		w_reg_select_dec = 59'h000_0000_0000_2000 ;
 	end
     {2'b01, `P_TA2_ADDR}:   // w_reg_select_dec bit 14
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0000_4000 ;
+		w_reg_select_dec = 59'h000_0000_0000_4000 ;
 	end
     {2'b01, `P_IMG_CTRL3_ADDR}:   // w_reg_select_dec bit 15
 	begin
 	    w_conf_data_out = { 29'h00000000, pci_img_ctrl3_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_8000 ;
+		w_reg_select_dec = 59'h000_0000_0000_8000 ;
 	end
     {2'b01, `P_BA3_ADDR}:   // w_reg_select_dec bit 16
 	begin
@@ -1459,24 +1573,24 @@ begin
     														  pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-		w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0001_0000 ; // The same for another address
 	end
     {2'b01, `P_AM3_ADDR}:   // w_reg_select_dec bit 17
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0002_0000 ;
+		w_reg_select_dec = 59'h000_0000_0002_0000 ;
 	end
     {2'b01, `P_TA3_ADDR}:   // w_reg_select_dec bit 18
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0004_0000 ;
+		w_reg_select_dec = 59'h000_0000_0004_0000 ;
 	end
     {2'b01, `P_IMG_CTRL4_ADDR}:   // w_reg_select_dec bit 19
 	begin
 	    w_conf_data_out = { 29'h00000000, pci_img_ctrl4_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0008_0000 ;
+		w_reg_select_dec = 59'h000_0000_0008_0000 ;
 	end
     {2'b01, `P_BA4_ADDR}:   // w_reg_select_dec bit 20
 	begin
@@ -1484,24 +1598,24 @@ begin
     														  pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-		w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0010_0000 ; // The same for another address
 	end
     {2'b01, `P_AM4_ADDR}:   // w_reg_select_dec bit 21
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0020_0000 ;
+		w_reg_select_dec = 59'h000_0000_0020_0000 ;
 	end
     {2'b01, `P_TA4_ADDR}:   // w_reg_select_dec bit 22
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0040_0000 ;
+		w_reg_select_dec = 59'h000_0000_0040_0000 ;
 	end
     {2'b01, `P_IMG_CTRL5_ADDR}:   // w_reg_select_dec bit 23
 	begin
 		w_conf_data_out = { 29'h00000000, pci_img_ctrl5_bit2_1, 1'h0 } ;
-		w_reg_select_dec = 57'h000_0000_0080_0000 ;
+		w_reg_select_dec = 59'h000_0000_0080_0000 ;
 	end
     {2'b01, `P_BA5_ADDR}:   // w_reg_select_dec bit 24
 	begin
@@ -1509,46 +1623,46 @@ begin
     														  pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
     	w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-		w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
+		w_reg_select_dec = 59'h000_0000_0100_0000 ; // The same for another address
 	end
     {2'b01, `P_AM5_ADDR}:   // w_reg_select_dec bit 25
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0200_0000 ;
+		w_reg_select_dec = 59'h000_0000_0200_0000 ;
 	end
     {2'b01, `P_TA5_ADDR}:   // w_reg_select_dec bit 26
 	begin
         w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
         w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-		w_reg_select_dec = 57'h000_0000_0400_0000 ;
+		w_reg_select_dec = 59'h000_0000_0400_0000 ;
 	end
     {2'b01, `P_ERR_CS_ADDR}:   // w_reg_select_dec bit 27
 	begin
 	    w_conf_data_out = { pci_err_cs_bit31_24, 13'h0000, pci_err_cs_bit10, pci_err_cs_bit9,
         				    pci_err_cs_bit8, 7'h00, pci_err_cs_bit0 } ;
-		w_reg_select_dec = 57'h000_0000_0800_0000 ;
+		w_reg_select_dec = 59'h000_0000_0800_0000 ;
 	end
     {2'b01, `P_ERR_ADDR_ADDR}:   // w_reg_select_dec bit 28
 	begin
 	    w_conf_data_out = pci_err_addr ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_1000_0000 ;
+		w_reg_select_dec = 59'h000_0000_0000_0000 ; // = 56'h00_0000_1000_0000 ;
 	end
     {2'b01, `P_ERR_DATA_ADDR}:   // w_reg_select_dec bit 29
 	begin
 		w_conf_data_out = pci_err_data ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_2000_0000 ;
+		w_reg_select_dec = 59'h000_0000_0000_0000 ; // = 56'h00_0000_2000_0000 ;
 	end
 	// WB slave - configuration space
 	{2'b01, `WB_CONF_SPC_BAR_ADDR}:
 	begin
 		w_conf_data_out = { wb_ba0_bit31_12, 11'h000, wb_ba0_bit0 } ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+		w_reg_select_dec = 59'h000_0000_0000_0000 ; // Read-Only register
 	end
 	{2'b01, `W_IMG_CTRL1_ADDR}:   // w_reg_select_dec bit 30
 	begin
 		w_conf_data_out = { 29'h00000000, wb_img_ctrl1_bit2_0 } ;
-		w_reg_select_dec = 57'h000_0000_4000_0000 ;
+		w_reg_select_dec = 59'h000_0000_4000_0000 ;
 	end
 	{2'b01, `W_BA1_ADDR}:   // w_reg_select_dec bit 31
 	begin
@@ -1556,24 +1670,24 @@ begin
     														 wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
     	w_conf_data_out[0] = wb_ba1_bit0 ;
-		w_reg_select_dec = 57'h000_0000_8000_0000 ;
+		w_reg_select_dec = 59'h000_0000_8000_0000 ;
 	end
 	{2'b01, `W_AM1_ADDR}:   // w_reg_select_dec bit 32
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0001_0000_0000 ;
+		w_reg_select_dec = 59'h000_0001_0000_0000 ;
 	end
     {2'b01, `W_TA1_ADDR}:   // w_reg_select_dec bit 33
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0002_0000_0000 ;
+		w_reg_select_dec = 59'h000_0002_0000_0000 ;
 	end
 	{2'b01, `W_IMG_CTRL2_ADDR}:   // w_reg_select_dec bit 34
 	begin
 		w_conf_data_out = { 29'h00000000, wb_img_ctrl2_bit2_0 } ;
-		w_reg_select_dec = 57'h000_0004_0000_0000 ;
+		w_reg_select_dec = 59'h000_0004_0000_0000 ;
 	end
 	{2'b01, `W_BA2_ADDR}:   // w_reg_select_dec bit 35
 	begin
@@ -1581,24 +1695,24 @@ begin
     														 wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
     	w_conf_data_out[0] = wb_ba2_bit0 ;
-		w_reg_select_dec = 57'h000_0008_0000_0000 ;
+		w_reg_select_dec = 59'h000_0008_0000_0000 ;
 	end
 	{2'b01, `W_AM2_ADDR}:   // w_reg_select_dec bit 36
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0010_0000_0000 ;
+		w_reg_select_dec = 59'h000_0010_0000_0000 ;
 	end
 	{2'b01, `W_TA2_ADDR}:   // w_reg_select_dec bit 37
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0020_0000_0000 ;
+		w_reg_select_dec = 59'h000_0020_0000_0000 ;
 	end
 	{2'b01, `W_IMG_CTRL3_ADDR}:   // w_reg_select_dec bit 38
 	begin
 		w_conf_data_out = { 29'h00000000, wb_img_ctrl3_bit2_0 } ;
-		w_reg_select_dec = 57'h000_0040_0000_0000 ;
+		w_reg_select_dec = 59'h000_0040_0000_0000 ;
 	end
 	{2'b01, `W_BA3_ADDR}:   // w_reg_select_dec bit 39
 	begin
@@ -1606,24 +1720,24 @@ begin
     														 wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
     	w_conf_data_out[0] = wb_ba3_bit0 ;
-		w_reg_select_dec = 57'h000_0080_0000_0000 ;
+		w_reg_select_dec = 59'h000_0080_0000_0000 ;
 	end
 	{2'b01, `W_AM3_ADDR}:   // w_reg_select_dec bit 40
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0100_0000_0000 ;
+		w_reg_select_dec = 59'h000_0100_0000_0000 ;
 	end
 	{2'b01, `W_TA3_ADDR}:   // w_reg_select_dec bit 41
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_0200_0000_0000 ;
+		w_reg_select_dec = 59'h000_0200_0000_0000 ;
 	end
 	{2'b01, `W_IMG_CTRL4_ADDR}:   // w_reg_select_dec bit 42
 	begin
 		w_conf_data_out = { 29'h00000000, wb_img_ctrl4_bit2_0 } ;
-		w_reg_select_dec = 57'h000_0400_0000_0000 ;
+		w_reg_select_dec = 59'h000_0400_0000_0000 ;
 	end
 	{2'b01, `W_BA4_ADDR}:   // w_reg_select_dec bit 43
 	begin
@@ -1631,24 +1745,24 @@ begin
     														 wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
     	w_conf_data_out[0] = wb_ba4_bit0 ;
-		w_reg_select_dec = 57'h000_0800_0000_0000 ;
+		w_reg_select_dec = 59'h000_0800_0000_0000 ;
 	end
 	{2'b01, `W_AM4_ADDR}:   // w_reg_select_dec bit 44
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_1000_0000_0000 ;
+		w_reg_select_dec = 59'h000_1000_0000_0000 ;
 	end
 	{2'b01, `W_TA4_ADDR}:   // w_reg_select_dec bit 45
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h000_2000_0000_0000 ;
+		w_reg_select_dec = 59'h000_2000_0000_0000 ;
 	end
 	{2'b01, `W_IMG_CTRL5_ADDR}:   // w_reg_select_dec bit 46
 	begin
 		w_conf_data_out = { 29'h00000000, wb_img_ctrl5_bit2_0 } ;
-		w_reg_select_dec = 57'h000_4000_0000_0000 ;
+		w_reg_select_dec = 59'h000_4000_0000_0000 ;
 	end
 	{2'b01, `W_BA5_ADDR}:   // w_reg_select_dec bit 47
 	begin
@@ -1656,52 +1770,52 @@ begin
     														 wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
     	w_conf_data_out[0] = wb_ba5_bit0 ;
-		w_reg_select_dec = 57'h000_8000_0000_0000 ;
+		w_reg_select_dec = 59'h000_8000_0000_0000 ;
 	end
 	{2'b01, `W_AM5_ADDR}:   // w_reg_select_dec bit 48
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h001_0000_0000_0000 ;
+		w_reg_select_dec = 59'h001_0000_0000_0000 ;
 	end
 	{2'b01, `W_TA5_ADDR}:   // w_reg_select_dec bit 49
 	begin
     	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
     	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-		w_reg_select_dec = 57'h002_0000_0000_0000 ;
+		w_reg_select_dec = 59'h002_0000_0000_0000 ;
 	end
 	{2'b01, `W_ERR_CS_ADDR}:   // w_reg_select_dec bit 50
 	begin
 		w_conf_data_out = { wb_err_cs_bit31_24, /*13*/14'h0000, /*wb_err_cs_bit10,*/
     					    wb_err_cs_bit9, wb_err_cs_bit8, 7'h00, wb_err_cs_bit0 } ;
-		w_reg_select_dec = 57'h004_0000_0000_0000 ;
+		w_reg_select_dec = 59'h004_0000_0000_0000 ;
 	end
 	{2'b01, `W_ERR_ADDR_ADDR}:   // w_reg_select_dec bit 51
 	begin
 		w_conf_data_out = wb_err_addr ;
-		w_reg_select_dec = 57'h008_0000_0000_0000 ;
+		w_reg_select_dec = 59'h008_0000_0000_0000 ;
 	end
 	{2'b01, `W_ERR_DATA_ADDR}:   // w_reg_select_dec bit 52
 	begin
 		w_conf_data_out = wb_err_data ;
-		w_reg_select_dec = 57'h010_0000_0000_0000 ;
+		w_reg_select_dec = 59'h010_0000_0000_0000 ;
 	end
 	{2'b01, `CNF_ADDR_ADDR}:   // w_reg_select_dec bit 53
 	begin
 		w_conf_data_out = { 8'h00, cnf_addr_bit23_2, 1'h0, cnf_addr_bit0 } ;
-		w_reg_select_dec = 57'h020_0000_0000_0000 ;
+		w_reg_select_dec = 59'h020_0000_0000_0000 ;
 	end
 		// `CNF_DATA_ADDR: implemented elsewhere !!!
 		// `INT_ACK_ADDR: implemented elsewhere !!!
     {2'b01, `ICR_ADDR}:   // w_reg_select_dec bit 54
 	begin
 		w_conf_data_out = { icr_bit31, 26'h0000_000, icr_bit4_3, icr_bit2_0 } ;
-		w_reg_select_dec = 57'h040_0000_0000_0000 ;
+		w_reg_select_dec = 59'h040_0000_0000_0000 ;
 	end
     {2'b01, `ISR_ADDR}:   // w_reg_select_dec bit 55
 	begin
 		w_conf_data_out = { 27'h0000_000, isr_bit4_3, isr_bit2_0 } ;
-		w_reg_select_dec = 57'h080_0000_0000_0000 ;
+		w_reg_select_dec = 59'h080_0000_0000_0000 ;
 	end
 
 `ifdef PCI_SPOCI
@@ -1714,14 +1828,14 @@ begin
 
         // this register is implemented separate from other registers, because
         // it has special features implemented
-        w_reg_select_dec = 57'h000_0000_0000_0000 ;
+        w_reg_select_dec = 59'h000_0000_0000_0000 ;
     end
 `endif
 
 	default:
 	begin
 		w_conf_data_out = 32'h0000_0000 ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ;
+		w_reg_select_dec = 59'h000_0000_0000_0000 ;
 	end
 	endcase
 end
@@ -2449,7 +2563,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 `endif
                     end
                 end
-
+/*
 `ifdef PCI_CPCI_HS_IMPLEMENT
                 if (w_reg_select_dec[56])
                 begin
@@ -2460,6 +2574,53 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
                     end
                 end
 `endif
+*/
+
+`ifdef MSI_CAPABILITY_EN // add write to MSI registers
+    if (w_reg_select_dec[56])
+    begin
+        if (~w_byte_en[3])
+        begin
+            r_msi_control[31:24] <= w_conf_data[31:24];
+        end
+        if (~w_byte_en[2])
+        begin
+            r_msi_control[23:16] <= w_conf_data[23:16];
+        end
+    end
+    if (w_reg_select_dec[57])
+    begin
+        if (~w_byte_en[3])
+        begin
+            r_msi_address[31:24] <= w_conf_data[31:24];
+        end
+        if (~w_byte_en[2])
+        begin
+            r_msi_address[23:16] <= w_conf_data[23:16];
+        end
+        if (~w_byte_en[1])
+        begin
+            r_msi_address[15:8] <= w_conf_data[15:8];
+        end
+        if (~w_byte_en[0])
+        begin
+            r_msi_address[7:0] <= w_conf_data[7:0];
+        end
+    end
+
+    if (w_reg_select_dec[58])
+    begin
+        if (~w_byte_en[1])
+        begin
+            r_msi_msg_data[15:8] <= w_conf_data[15:8];
+        end
+        if (~w_byte_en[0])
+        begin
+            r_msi_msg_data[7:0] <= w_conf_data[7:0];
+        end
+     end
+`endif;
+
 		end // end of we
 
         // Not register bits; used only internally after reset!
@@ -3924,6 +4085,8 @@ assign		wb_img_ctrl5[2 : 0] = wb_img_ctrl5_bit2_0 ;
 // GENERAL output from conf. cycle generation register & int. control register
 assign		config_addr[23 : 0] = { cnf_addr_bit23_2, 1'b0, cnf_addr_bit0 } ;
 assign		icr_soft_res = icr_bit31 ;
+
+
 
 endmodule
 			                    

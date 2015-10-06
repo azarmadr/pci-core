@@ -90,8 +90,14 @@
 // This does not include address offsets of PCI Header registers - they starts at offset 0 (see PCI spec.)
 //   ALL VALUES are without 2 LSBits AND there is required that address bit [8] is set while
 //   accessing this registers, otherwise the configuration header will be accessed !!!
-`define PCI_CAP_PTR_VAL         8'h80
-`define P_IMG_CTRL0_ADDR		6'h00	//	Address offset = h 100
+
+`define P_MSI_CAP_PTR_VAL     8'h50  
+`define P_MSI_MSG_CTRL        6'h14  // Address offset for MSI capability = h 50
+`define P_MSI_MSG_ADDR        6'h15  // Address offset for MSI capability = h 54
+`define P_MSI_MSG_DATA        6'h16  // Address offset for MSI capability = h 58
+
+`define PCI_CAP_PTR_VAL   8'h80
+`define P_IMG_CTRL0_ADDR	6'h00	//	Address offset = h 100
 `define P_BA0_ADDR				6'h01	//	Address offset = h 104
 `define P_AM0_ADDR				6'h02   //	Address offset = h 108
 `define P_TA0_ADDR				6'h03   //	Address offset = h 10c
@@ -158,6 +164,8 @@
     `define HEADER_66MHz        1'b1
 `endif
 `endif
+
+
 
 // all flip-flops in the design have this inter-assignment delay
 `define FF_DELAY 1

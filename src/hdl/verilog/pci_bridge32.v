@@ -221,8 +221,14 @@ module pci_bridge32
     // system error pin
     pci_serr_o,
     pci_serr_oe_o,
-    pci_bar_hit_o
-
+    
+    // MSI capability registers
+`ifdef MSI_CAPABILITY_EN
+    msi_control_o,
+    msi_address_o,
+    msi_msg_data_o,    
+`endif
+    
 `ifdef PCI_BIST
     ,
     // debug chain signals
@@ -373,7 +379,21 @@ output  pci_perr_oe_o ;
 output  pci_serr_o ;
 output  pci_serr_oe_o ;
 
-output [5:0] pci_bar_hit_o ;
+output  [31 : 0]	msi_control_o;
+output  [31 : 0]	msi_address_o;
+output  [15 : 0]	msi_msg_data_o;
+
+`ifdef MSI_CAPABILITY_EN
+  assign msi_control_o    = conf_msi_control;
+  assign msi_address_o    = conf_msi_address;
+  assign msi_msg_data_o   = conf_msi_msg_data;
+`else
+  assign msi_control_o    = 32'h0000_0000;
+  assign msi_address_o    = 32'h0000_0000;
+  assign msi_msg_data_o   = 16'h0000;
+`endif
+
+
 
 `ifdef PCI_BIST
 /*-----------------------------------------------------
@@ -595,6 +615,13 @@ wire            conf_soft_res_out ;
 wire            conf_int_out ;
 wire            conf_wb_init_complete_out  ;
 wire            conf_pci_init_complete_out ;
+
+// MSI capability registers to top
+wire  [31 : 0]	conf_msi_control;
+wire  [31 : 0]	conf_msi_address;
+wire  [15 : 0]	conf_msi_msg_data;
+
+
 
 // PCI IO MUX OUTPUTS
 wire        pci_mux_frame_out ;
@@ -1186,8 +1213,7 @@ pci_target_unit pci_target_unit
     .pciu_conf_be_out               (pciu_conf_be_out),
     .pciu_conf_data_out             (pciu_conf_data_out),
     .pciu_pci_drcomp_pending_out    (pciu_pci_drcomp_pending_out),
-    .pciu_pciw_fifo_empty_out       (pciu_pciw_fifo_empty_out),
-    .pciu_bar_hit_o                 (pci_bar_hit_o)
+    .pciu_pciw_fifo_empty_out       (pciu_pciw_fifo_empty_out)
 
 `ifdef PCI_BIST
     ,
@@ -1366,6 +1392,14 @@ pci_conf_space configuration(
 
                                 .pci_init_complete_out      (conf_pci_init_complete_out),
                                 .wb_init_complete_out       (conf_wb_init_complete_out)
+                                
+                                `ifdef MSI_CAPABILITY_EN
+                                    ,
+                                    .msi_control         (conf_msi_control),
+                                    .msi_address         (conf_msi_address),
+                                    .msi_msg_data        (conf_msi_msg_data)
+                                `endif
+                                
 
                             `ifdef PCI_CPCI_HS_IMPLEMENT
                                 ,

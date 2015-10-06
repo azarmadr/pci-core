@@ -60,6 +60,8 @@ files = [
   "src/hdl/verilog/timescale.v",
   "src/hdl/wb_pci_pkg.vhd",
   "src/hdl/wb_pmc_host_bridge.vhd",
-  "src/hdl/wb_pmc_host_bridge_pkg.vhd"
+  "src/hdl/wb_pmc_host_bridge_pkg.vhd",
+  "src/hdl/dpram/aria_dpram.v",
+  "src/hdl/dpram/aria_dpram.qip",
 ];
 

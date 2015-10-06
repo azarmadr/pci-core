@@ -40,8 +40,6 @@
 //////////////////////////////////////////////////////////////////////
 //
 // CVS Revision History
-// Revision 1.15  2015/02/09 dslavinec
-// Added pciu_bar_hit_o output (PCI bar hit)
 //
 // $Log: not supported by cvs2svn $
 // Revision 1.15  2003/12/19 11:11:30  mihad
@@ -108,9 +106,6 @@ module pci_target_unit
     reset_in,
     wb_clock_in,
     pci_clock_in,
-    
-    pciu_bar_hit_o, // dslavinec
-
     pciu_wbm_adr_o,
     pciu_wbm_dat_o,
     pciu_wbm_dat_i,
@@ -311,8 +306,6 @@ output  [31:0]  pciu_conf_data_out ;
 
 output          pciu_pci_drcomp_pending_out ;
 output          pciu_pciw_fifo_empty_out ;
-
-output [5:0]    pciu_bar_hit_o; // dslavinec
 
 `ifdef PCI_BIST
 /*-----------------------------------------------------
@@ -844,8 +837,7 @@ pci_target32_interface pci_target_if
     .addr_tran_en2_in               (pcit_if_addr_tran_en2_in),
     .addr_tran_en3_in               (pcit_if_addr_tran_en3_in),
     .addr_tran_en4_in               (pcit_if_addr_tran_en4_in),
-    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in),
-    .bar_hit_out                    (pciu_bar_hit_o)
+    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in)
 ) ;
 
 // pci target state machine inputs

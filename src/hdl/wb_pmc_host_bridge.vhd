@@ -11,6 +11,7 @@ use work.wishbone_pkg.all;
 use work.genram_pkg.all;
 use work.wb_pci_pkg.all;
 --use work.wb_pmc_host_bridge_pkg.all;
+use work.gencores_pkg.all;
 
 -- XWB control BAR is mapped to BAR1
 -- XWB devices BAR is mapped to BAR2
@@ -34,15 +35,18 @@ entity wb_pmc_host_bridge is
     slave_rstn_i  : in    std_logic := '1';
     slave_i       : in    t_wishbone_slave_in;
     slave_o       : out   t_wishbone_slave_out;
+    
     -- PCI signals - generic
     pci_clk_i     : in    std_logic := '0';
     pci_rst_i     : in    std_logic := '0';
     buf_oe_o      : out   std_logic := '0';
     busmode_io    : inout std_logic_vector(3 downto 0);
+    
     -- PCI signals (required) - address and data
     ad_io         : inout std_logic_vector(31 downto 0);
     c_be_io       : inout std_logic_vector(3 downto 0);
     par_io        : inout std_logic;
+    
     -- PCI signals (required) - interface control pins
     frame_io      : inout std_logic;
     trdy_io       : inout std_logic;
@@ -50,9 +54,13 @@ entity wb_pmc_host_bridge is
     stop_io       : inout std_logic;
     devsel_io     : inout std_logic;
     idsel_i       : in    std_logic;
+    req_o         : out   std_logic;
+    gnt_i         : in    std_logic;
+    
     -- PCI signals (required) - error reporting
     perr_io       : inout std_logic;
     serr_io       : inout std_logic;
+    
     -- PCI signals (optional) - interrupts pins
     inta_o        : out   std_logic
 );    
@@ -92,6 +100,11 @@ signal wbs_rty      : std_logic;
 signal wbs_err      : std_logic;
 signal wbs_cti      : std_logic_vector(2 downto 0);
 signal wbs_bte      : std_logic_vector(1 downto 0);
+signal wbs_stall    : std_logic;
+
+signal msi_control  : std_logic_vector(31 downto 0);
+signal msi_address  : std_logic_vector(31 downto 0);
+signal msi_msg_data : std_logic_vector(15 downto 0);
 
 -- Wishbone Master Interface
 signal wbm_adr      : std_logic_vector(31 downto 0);
@@ -138,7 +151,6 @@ signal SERR_en      : std_logic;
   signal internal_wb_clk, internal_wb_rstn, stall : std_logic; 
   signal internal_wb_rstn_sync : std_logic_vector(3 downto 0) := (others => '0');
   
-  signal tx_alloc_mask : std_logic := '1'; -- Only pass every even tx32_alloc to tx64_alloc.
   
   signal wb_stb   : std_logic;
   signal wb_cyc   : std_logic;
@@ -174,8 +186,9 @@ signal SERR_en      : std_logic;
   signal stb_asserted : std_logic;
   signal ack_asserted : std_logic; 
 
-  signal pci_bar_hit      : std_logic_vector(5 downto 0);
-  signal r_pci_bar_hit    : std_logic_vector(5 downto 0);
+  signal irq_key_state    : std_logic;
+  signal irq_key_down     : std_logic;
+  signal irq_key_up       : std_logic;
   
 
 begin
@@ -198,10 +211,10 @@ port map (
  pci_inta_oe_o  => INTA_en,
 
  -- arbitration pins
- pci_req_o      => REQ_out, -- not used in GUEST
- pci_req_oe_o   => REQ_en,  -- not used in GUEST
+ pci_req_o      => REQ_out,
+ pci_req_oe_o   => REQ_en,
 
- pci_gnt_i      => '1',     -- not used in GUEST
+ pci_gnt_i      => gnt_i,
 
  -- protocol pins
  pci_frame_i      => frame_io,
@@ -248,27 +261,29 @@ port map (
  pci_serr_o       => SERR_out,
  pci_serr_oe_o    => SERR_en, 
 
- pci_bar_hit_o    => pci_bar_hit,
+ msi_control_o   => open,
+ msi_address_o   => msi_address,
+ msi_msg_data_o  => msi_msg_data,
 
  -- WISHBONE system signals
  wb_clk_i   => wb_clk,
  wb_rst_i   => wb_rst_in,
  wb_rst_o   => wb_rst_out,
  
- wb_int_i   => '0', -- wb_int_in,
+ wb_int_i   => wb_int_in,
  wb_int_o   => open,  -- not used in GUEST
 
  -- WISHBONE slave interface
- wbs_adr_i  => (others => '0'),
- wbs_dat_i  => (others => '0'),
- wbs_dat_o  => open,
- wbs_sel_i  => (others => '0'),
- wbs_cyc_i  => '0',
- wbs_stb_i  => '0',
- wbs_we_i   => '0',
- wbs_ack_o  => open,
- wbs_rty_o  => open,
- wbs_err_o  => open,
+ wbs_adr_i  => wbs_adr,
+ wbs_dat_i  => wbs_dat_in,
+ wbs_dat_o  => wbs_dat_out,
+ wbs_sel_i  => wbs_sel,
+ wbs_cyc_i  => wbs_cyc,
+ wbs_stb_i  => wbs_stb,
+ wbs_we_i   => wbs_we,
+ wbs_ack_o  => wbs_ack_out,
+ wbs_rty_o  => wbs_rty,
+ wbs_err_o  => wbs_err,
  
 --`ifdef PCI_WB_REV_B3
  wbs_cti_i  => (others => '0'),
@@ -317,11 +332,11 @@ devsel_io <=  DEVSEL_out  when DEVSEL_en  = BUF_OE else 'Z';
 trdy_io   <=  TRDY_out    when TRDY_en    = BUF_OE else 'Z';
 stop_io   <=  STOP_out    when STOP_en    = BUF_OE else 'Z';
 inta_o    <=  INTA_out    when INTA_en    = BUF_OE else 'Z';
+req_o     <=  REQ_out     when REQ_en     = BUF_OE else 'Z';
 par_io    <=  PAR_out     when PAR_en     = BUF_OE else 'Z';
 perr_io   <=  PERR_out    when PERR_en    = BUF_OE else 'Z';
 serr_io   <=  SERR_out    when SERR_en    = BUF_OE else 'Z';
 
---req_o     <= 'Z'; -- not used in GUEST
 
 
 busmode_io(3 downto 1)  <= (others => 'Z'); -- only used as inputs
@@ -373,29 +388,18 @@ end process p_bus_activitiy_fsm;
 
 -- rising edge detectors
 stb_asserted <= '1' when (stb_prev = '0' and wbm_stb = '1') else '0';
-ack_asserted <= '1' when (ack_prev = '0' and  wb_ack = '1') else '0';
+ack_asserted <= '1' when (ack_prev = '0' and wb_ack  = '1') else '0';
 
 wb_stb  <= wbm_stb when bus_state = st_idle else '0';
 
 
---------------------------------------------------------------------
--- bar hit register - store bar hit vector from PCI core when it changes
-p_bar_hit_reg: process(internal_wb_clk)
-begin
-  if rising_edge(internal_wb_clk) then
-    if internal_wb_rstn = '0' then
-      r_pci_bar_hit <= (others => '0');
-    else 
-      if pci_bar_hit /= "000000" and pci_bar_hit /= r_pci_bar_hit then
-        r_pci_bar_hit <= pci_bar_hit;
-      else 
-        r_pci_bar_hit <= r_pci_bar_hit;
-      end if;
-    end if; -- reset
-  end if; -- clk
-end process p_bar_hit_reg;
-
-wb_bar  <= r_pci_bar_hit;
+-- Using ADDRESS TRANSLATION feature of the PCI core to get bar_hit
+-- see ./verilog/pci_user_constants.v : 
+-- `define PCI_TA1 24'h0100_00
+-- `define PCI_TA2 24'h0200_00
+-- BAR1 on WB address bus is translated from 0xPPxxxxxx on PCI > 0x01xxxxxx on WB
+-- BAR2 on WB address bus is translated from 0xPPxxxxxx on PCI > 0x02xxxxxx on WB
+wb_bar  <= wbm_adr(28 downto 24) & '0';
 
 wb_adr          <= x"00000000" & wbm_adr;
 
@@ -419,7 +423,6 @@ wbm_dat_in  <= wb_dat;
   begin
     if rising_edge(internal_wb_clk) then
       internal_wb_rstn_sync <= (master_rstn_i and slave_rstn_i) & internal_wb_rstn_sync(internal_wb_rstn_sync'length-1 downto 1);
-      
     end if;
   end process;
   
@@ -454,8 +457,41 @@ wbm_dat_in  <= wb_dat;
   fifo_full <= int_master_o.cyc and int_master_o.stb;
   app_int_sts <= fifo_full and r_int; -- Classic interrupt until FIFO drained
   app_msi_req <= fifo_full and not r_fifo_full; -- Edge-triggered MSI
+
+wb_int_in <= app_int_sts; -- connect generated IRQ signal to PCI core signal
   
   int_master_i.rty <= '0';
+wbs_stall <= '0' when wbs_cyc = '0' else not wbs_ack_out;
+-- send pending MSI IRQs over WB
+  wb_irq_master : process(internal_wb_clk)
+  begin
+   if rising_edge(internal_wb_clk) then
+      if(internal_wb_rstn = '0') then
+         wbs_cyc <= '0';
+         wbs_stb <= '0';
+      else
+         if wbs_cyc = '1' then
+           if wbs_stall = '0' then
+             wbs_stb <= '0';
+           end if;
+           if (wbs_ack_out = '1' or wbs_err = '1') then
+             wbs_cyc <= '0';
+           end if;
+         else
+           wbs_cyc <= app_msi_req;
+           wbs_stb <= app_msi_req;
+           wbs_adr    <= msi_address; 
+           wbs_dat_in <= x"0000" & msi_msg_data;
+         end if;
+      end if;
+    end if;
+  end process;  
+  
+-- Wishbone Slave Interface !!! Used for posting MSI
+wbs_sel      <= "1111"; 
+wbs_we       <= '1';
+wbs_rty      <= '0';
+wbs_bte      <= "00";  
   
   control : process(internal_wb_clk)
   begin

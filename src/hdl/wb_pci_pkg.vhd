@@ -168,8 +168,9 @@ port (
     wbm_rty_i            : in      std_logic;
     wbm_err_i            : in      std_logic;
 
-
-    pci_bar_hit_o        : out     std_logic_vector(5 downto 0);
+   	msi_control_o        : out     std_logic_vector(31 downto 0);
+    msi_address_o        : out     std_logic_vector(31 downto 0);
+    msi_msg_data_o       : out     std_logic_vector(15 downto 0);
     
 -- pci interface - system pins
     pci_clk_i            : in      std_logic;

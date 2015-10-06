@@ -397,6 +397,34 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
     assign do_a = 0 ;
 `endif
 
+`ifdef ALTERA_ARRIA_V_DPRAM
+    `define PCI_PCI_RAM_SELECTED
+    //
+    // Instantiation of FPGA RAM:
+    //
+    // Altera ARRIA V Synchronous 2-port R/W RAM
+    //
+	aria_dpram	aria_dpram_inst (
+		.address_a ( addr_a ),
+		.address_b ( addr_b ), 
+		.clock_a   ( clk_a ),
+		.clock_b   ( clk_b ),
+		.data_a    ( di_a ),
+		.data_b    ( di_a ),
+		.rden_a    ( oe_a ),
+		.rden_b    ( oe_b ),
+		.wren_a    ( we_a ),
+		.wren_b    ( we_a ),
+		.q_a       ( do_a ),
+		.q_b       ( do_b )
+		);
+	 
+`endif
+
+
+
+
+
 `ifdef PCI_PCI_RAM_SELECTED
 `else
     //

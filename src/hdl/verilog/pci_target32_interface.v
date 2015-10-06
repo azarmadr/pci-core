@@ -48,9 +48,6 @@
 // Specification updated.
 // Test application changed to support WB B3 cycles.
 //
-// Revision 2.0 2015/02/09 dusan slavinec
-// Added bar_hit_out output.
-//
 // Revision 1.9  2003/08/21 20:55:14  tadejm
 // Corrected bug when writing to FIFO (now it is registered).
 //
@@ -208,8 +205,7 @@ module pci_target32_interface
 	addr_tran_en2_in,
 	addr_tran_en3_in,
 	addr_tran_en4_in,
-	addr_tran_en5_in,
-  bar_hit_out //
+	addr_tran_en5_in
 ) ;
 
 `ifdef HOST
@@ -388,8 +384,6 @@ input			addr_tran_en3_in ;	// address translation enable bit
 input			addr_tran_en4_in ;	// address translation enable bit
 input			addr_tran_en5_in ;	// address translation enable bit
 
-output [5:0]  bar_hit_out ; // bar hit vector
-
 /*==================================================================================================================
 END of input / output PORT DEFINITONS !!!
 ==================================================================================================================*/
@@ -467,8 +461,6 @@ wire			pre_fetch_en5 = 1'b0 ;
 `endif
 
 
-
-assign bar_hit_out = {hit5_in, hit4_in, hit3_in, hit2_in, hit1_in, hit0_in};
 
 // Include address decoders
 `ifdef			HOST
