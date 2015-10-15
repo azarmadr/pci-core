@@ -56,7 +56,11 @@ package wb_pmc_host_bridge_pkg is
       perr_io       : inout std_logic;
       serr_io       : inout std_logic;
       -- PCI signals (optional) - interrupts pins
-      inta_o        : out   std_logic
+      inta_o        : out   std_logic;
+
+    debug_i       : in  std_logic_vector(7 downto 0);
+    debug_o       : out std_logic_vector(7 downto 0)
+
     );
   end component;
   

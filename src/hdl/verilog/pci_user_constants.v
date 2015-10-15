@@ -333,7 +333,7 @@ capable device
 
 // define the macro below to disable internal retry generation in the wishbone master interface
 // used when wb master accesses extremly slow devices.
-`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
+//`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
 
 `define PCI_WB_REV_B3
 //`define PCI_WBS_B3_RTY_DISABLE

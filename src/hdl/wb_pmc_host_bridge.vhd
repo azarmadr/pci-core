@@ -12,6 +12,7 @@ use work.genram_pkg.all;
 use work.wb_pci_pkg.all;
 --use work.wb_pmc_host_bridge_pkg.all;
 use work.gencores_pkg.all;
+use work.aux_functions_pkg.all;
 
 -- XWB control BAR is mapped to BAR1
 -- XWB devices BAR is mapped to BAR2
@@ -62,7 +63,10 @@ entity wb_pmc_host_bridge is
     serr_io       : inout std_logic;
     
     -- PCI signals (optional) - interrupts pins
-    inta_o        : out   std_logic
+    inta_o        : out   std_logic;
+
+    debug_i       : in  std_logic_vector(7 downto 0);
+    debug_o       : out std_logic_vector(7 downto 0)
 );    
 end wb_pmc_host_bridge;
 
@@ -186,9 +190,13 @@ signal SERR_en      : std_logic;
   signal stb_asserted : std_logic;
   signal ack_asserted : std_logic; 
 
-  signal irq_key_state    : std_logic;
-  signal irq_key_down     : std_logic;
-  signal irq_key_up       : std_logic;
+
+
+
+
+  -- debug signals 
+  signal irq_button_intx : std_logic;
+  signal irq_button_msi  : std_logic;
   
 
 begin
@@ -455,14 +463,75 @@ wbm_dat_in  <= wb_dat;
 
   -- Notify the system when the FIFO is non-empty
   fifo_full <= int_master_o.cyc and int_master_o.stb;
-  app_int_sts <= fifo_full and r_int; -- Classic interrupt until FIFO drained
-  app_msi_req <= fifo_full and not r_fifo_full; -- Edge-triggered MSI
+--  app_int_sts <= fifo_full and r_int; -- Classic interrupt until FIFO drained
+--  app_msi_req <= fifo_full and not r_fifo_full; -- Edge-triggered MSI
 
-wb_int_in <= app_int_sts; -- connect generated IRQ signal to PCI core signal
+
+
+
+------------------------------------------------------------------------------------
+-- IRQ test via buttons
+-- FPGA button triggers INTx IRQ
+-- CPLD button triggers MSI IRQ on release
+
+
+intx_irq_btn_debounce : debounce
+generic map
+    ( DB_Cnt => 512)
+port map(
+    Reset   => not internal_wb_rstn, 
+    Clk     => internal_wb_clk,
+    DB_In   => debug_i(0),
+    DB_Out  => irq_button_intx
+    );
+
+msi_irq_btn_debounce : debounce
+generic map
+    ( DB_Cnt => 512)
+port map(
+    Reset   => not internal_wb_rstn, 
+    Clk     => internal_wb_clk,
+    DB_In   => debug_i(1),
+    DB_Out  => irq_button_msi
+    );
+
+-- rising edge detection for buttons, on button release
+p_button_red: process(internal_wb_clk)
+  variable v_msi_irq_button_reg : std_logic_vector(1 downto 0);
+  variable v_msi_irq_button_red : std_logic;
+begin
+	if rising_edge(internal_wb_clk) then
+    if(internal_wb_rstn = '0') then
+      v_msi_irq_button_reg := "00";
+      v_msi_irq_button_red := '0';
+    else
+      v_msi_irq_button_reg  := not irq_button_msi & v_msi_irq_button_reg(1);
+
+      if v_msi_irq_button_reg(0) = '0' and v_msi_irq_button_reg(1)= '1' then
+        v_msi_irq_button_red := '1';
+      else
+        v_msi_irq_button_red := '0';
+      end if;
+    end if;  
+  end if; -- clk
+
+  -- trigger MSI IRQ when CPLD button released
+  app_msi_req <= v_msi_irq_button_red;
+
+  
+end process p_button_red;
+
+  -- trigger INTx IRQ when FPGA button pressed and IRQs enabled in CONTROL_REGISTER_HIGH (r_int)
+  app_int_sts <= not irq_button_intx and r_int;
+
+
+-------------------------------------------------------------------------------------
+
+  wb_int_in <= app_int_sts; -- connect generated IRQ signal to PCI core signal
   
   int_master_i.rty <= '0';
-wbs_stall <= '0' when wbs_cyc = '0' else not wbs_ack_out;
--- send pending MSI IRQs over WB
+
+  -- send pending MSI IRQs over WB
   wb_irq_master : process(internal_wb_clk)
   begin
    if rising_edge(internal_wb_clk) then
@@ -480,18 +549,22 @@ wbs_stall <= '0' when wbs_cyc = '0' else not wbs_ack_out;
          else
            wbs_cyc <= app_msi_req;
            wbs_stb <= app_msi_req;
-           wbs_adr    <= msi_address; 
-           wbs_dat_in <= x"0000" & msi_msg_data;
          end if;
       end if;
     end if;
   end process;  
   
 -- Wishbone Slave Interface !!! Used for posting MSI
+wbs_stall <= '0' when wbs_cyc = '0' else not wbs_ack_out;
+wbs_adr    <= msi_address; 
+wbs_dat_in <= x"0000" & msi_msg_data;
 wbs_sel      <= "1111"; 
 wbs_we       <= '1';
 wbs_rty      <= '0';
 wbs_bte      <= "00";  
+
+
+
   
   control : process(internal_wb_clk)
   begin
@@ -521,10 +594,10 @@ wbs_bte      <= "00";
             wb_dat <= r_error(63 downto 32);
           when "00011" => -- Error flag low  x0c
             wb_dat <= r_error(31 downto 0);
-          when "00101" => -- Window offset low
+          when "00101" => -- Window offset low x14
             wb_dat(r_addr'range) <= r_addr;
             wb_dat(r_addr'right-1 downto 0) <= (others => '0');
-          when "00111" => -- SDWB address low
+          when "00111" => -- SDWB address low x1C
             wb_dat <= g_sdb_addr;
           when "10000" => -- Master FIFO status & flags
             wb_dat(31) <= fifo_full;

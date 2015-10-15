@@ -220,10 +220,11 @@ module pci_bridge32
 
     // system error pin
     pci_serr_o,
-    pci_serr_oe_o,
+    pci_serr_oe_o
     
     // MSI capability registers
 `ifdef MSI_CAPABILITY_EN
+    ,
     msi_control_o,
     msi_address_o,
     msi_msg_data_o,    
