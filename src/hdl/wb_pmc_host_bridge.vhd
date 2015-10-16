@@ -197,6 +197,10 @@ signal SERR_en      : std_logic;
   -- debug signals 
   signal irq_button_intx : std_logic;
   signal irq_button_msi  : std_logic;
+
+  signal s_msi_irq_button_reg : std_logic_vector(1 downto 0);
+  signal s_msi_irq_button_red : std_logic;
+
   
 
 begin
@@ -334,8 +338,22 @@ gen_al_cbe: for j in 0 to 3 generate
   c_be_io(j)     <= CBE_out(j) when CBE_en(j) = BUF_OE else 'Z';
 end generate;
 
+irdy_delay : process(pci_clk_i)
+begin
+  if rising_edge(pci_clk_i) then
+    if pci_rst_i = '0' then
+	   IRDY_out_delay_reg <= "00";
+	 else	
+		IRDY_out_delay_reg <= IRDY_out_delay_reg(0) & IRDY_out;
+    end if;
+  end if;
+end process irdy_delay;
+		
 frame_io  <=  FRAME_out   when FRAME_en   = BUF_OE else 'Z';
-irdy_io   <=  IRDY_out    when IRDY_en    = BUF_OE else 'Z';
+
+--irdy_io   <=  IRDY_out    when IRDY_en    = BUF_OE else 'Z';
+irdy_io   <=  IRDY_out_delay_reg(0) when IRDY_en    = BUF_OE else 'Z'; -- using delayed IRDY 
+
 devsel_io <=  DEVSEL_out  when DEVSEL_en  = BUF_OE else 'Z';
 trdy_io   <=  TRDY_out    when TRDY_en    = BUF_OE else 'Z';
 stop_io   <=  STOP_out    when STOP_en    = BUF_OE else 'Z';
@@ -481,7 +499,7 @@ generic map
 port map(
     Reset   => not internal_wb_rstn, 
     Clk     => internal_wb_clk,
-    DB_In   => debug_i(0),
+    DB_In   => not debug_i(0),
     DB_Out  => irq_button_intx
     );
 
@@ -491,38 +509,35 @@ generic map
 port map(
     Reset   => not internal_wb_rstn, 
     Clk     => internal_wb_clk,
-    DB_In   => debug_i(1),
+    DB_In   => not debug_i(1),
     DB_Out  => irq_button_msi
     );
 
 -- rising edge detection for buttons, on button release
 p_button_red: process(internal_wb_clk)
-  variable v_msi_irq_button_reg : std_logic_vector(1 downto 0);
-  variable v_msi_irq_button_red : std_logic;
 begin
 	if rising_edge(internal_wb_clk) then
     if(internal_wb_rstn = '0') then
-      v_msi_irq_button_reg := "00";
-      v_msi_irq_button_red := '0';
+      s_msi_irq_button_reg <= "00";
+      s_msi_irq_button_red <= '0';
     else
-      v_msi_irq_button_reg  := not irq_button_msi & v_msi_irq_button_reg(1);
+      s_msi_irq_button_reg  <= irq_button_msi & s_msi_irq_button_reg(1); -- shift right
 
-      if v_msi_irq_button_reg(0) = '0' and v_msi_irq_button_reg(1)= '1' then
-        v_msi_irq_button_red := '1';
+      if s_msi_irq_button_reg(0) = '0' and s_msi_irq_button_reg(1)= '1' then
+        s_msi_irq_button_red <= '1';
       else
-        v_msi_irq_button_red := '0';
+        s_msi_irq_button_red <= '0';
       end if;
     end if;  
   end if; -- clk
-
-  -- trigger MSI IRQ when CPLD button released
-  app_msi_req <= v_msi_irq_button_red;
-
-  
 end process p_button_red;
 
+  -- trigger MSI IRQ when CPLD button released
+  app_msi_req <= s_msi_irq_button_red;
+
+
   -- trigger INTx IRQ when FPGA button pressed and IRQs enabled in CONTROL_REGISTER_HIGH (r_int)
-  app_int_sts <= not irq_button_intx and r_int;
+  app_int_sts <= irq_button_intx and r_int;
 
 
 -------------------------------------------------------------------------------------
