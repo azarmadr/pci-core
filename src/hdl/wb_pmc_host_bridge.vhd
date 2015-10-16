@@ -353,7 +353,8 @@ end process irdy_delay;
 frame_io  <=  FRAME_out   when FRAME_en   = BUF_OE else 'Z';
 
 --irdy_io   <=  IRDY_out    when IRDY_en    = BUF_OE else 'Z';
-irdy_io   <=  IRDY_out_delay_reg(0) when IRDY_en    = BUF_OE else 'Z'; -- using delayed IRDY 
+
+irdy_io   <=  (IRDY_out_delay_reg(0) or IRDY_out) when IRDY_en    = BUF_OE else 'Z'; -- using delayed IRDY 
 
 devsel_io <=  DEVSEL_out  when DEVSEL_en  = BUF_OE else 'Z';
 trdy_io   <=  TRDY_out    when TRDY_en    = BUF_OE else 'Z';
@@ -496,7 +497,7 @@ wbm_dat_in  <= wb_dat;
 
 intx_irq_btn_debounce : debounce
 generic map
-    ( DB_Cnt => 512)
+    ( DB_Cnt => 6250000) -- 50ms
 port map(
     Reset   => not internal_wb_rstn, 
     Clk     => internal_wb_clk,
@@ -506,7 +507,7 @@ port map(
 
 msi_irq_btn_debounce : debounce
 generic map
-    ( DB_Cnt => 512)
+    ( DB_Cnt => 6250000) -- 50ms
 port map(
     Reset   => not internal_wb_rstn, 
     Clk     => internal_wb_clk,
