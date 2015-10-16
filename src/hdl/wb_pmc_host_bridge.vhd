@@ -201,6 +201,7 @@ signal SERR_en      : std_logic;
   signal s_msi_irq_button_reg : std_logic_vector(1 downto 0);
   signal s_msi_irq_button_red : std_logic;
 
+  signal IRDY_out_delay_reg	: std_logic_vector(1 downto 0);
   
 
 begin
