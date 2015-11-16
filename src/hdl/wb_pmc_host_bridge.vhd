@@ -483,8 +483,8 @@ wbm_dat_in  <= wb_dat;
 
   -- Notify the system when the FIFO is non-empty
   fifo_full <= int_master_o.cyc and int_master_o.stb;
---  app_int_sts <= fifo_full and r_int; -- Classic interrupt until FIFO drained
---  app_msi_req <= fifo_full and not r_fifo_full; -- Edge-triggered MSI
+  app_int_sts <= fifo_full and r_int; -- Classic interrupt until FIFO drained
+  app_msi_req <= fifo_full and not r_fifo_full; -- Edge-triggered MSI
 
 
 
@@ -495,51 +495,51 @@ wbm_dat_in  <= wb_dat;
 -- CPLD button triggers MSI IRQ on release
 
 
-intx_irq_btn_debounce : debounce
-generic map
-    ( DB_Cnt => 6250000) -- 50ms
-port map(
-    Reset   => not internal_wb_rstn, 
-    Clk     => internal_wb_clk,
-    DB_In   => not debug_i(0),
-    DB_Out  => irq_button_intx
-    );
-
-msi_irq_btn_debounce : debounce
-generic map
-    ( DB_Cnt => 6250000) -- 50ms
-port map(
-    Reset   => not internal_wb_rstn, 
-    Clk     => internal_wb_clk,
-    DB_In   => not debug_i(1),
-    DB_Out  => irq_button_msi
-    );
-
--- rising edge detection for buttons, on button release
-p_button_red: process(internal_wb_clk)
-begin
-	if rising_edge(internal_wb_clk) then
-    if(internal_wb_rstn = '0') then
-      s_msi_irq_button_reg <= "00";
-      s_msi_irq_button_red <= '0';
-    else
-      s_msi_irq_button_reg  <= irq_button_msi & s_msi_irq_button_reg(1); -- shift right
-
-      if s_msi_irq_button_reg(0) = '0' and s_msi_irq_button_reg(1)= '1' then
-        s_msi_irq_button_red <= '1';
-      else
-        s_msi_irq_button_red <= '0';
-      end if;
-    end if;  
-  end if; -- clk
-end process p_button_red;
-
-  -- trigger MSI IRQ when CPLD button released
-  app_msi_req <= s_msi_irq_button_red;
-
-
-  -- trigger INTx IRQ when FPGA button pressed and IRQs enabled in CONTROL_REGISTER_HIGH (r_int)
-  app_int_sts <= irq_button_intx and r_int;
+--intx_irq_btn_debounce : debounce
+--generic map
+--    ( DB_Cnt => 6250000) -- 50ms
+--port map(
+--    Reset   => not internal_wb_rstn, 
+--    Clk     => internal_wb_clk,
+--    DB_In   => not debug_i(0),
+--    DB_Out  => irq_button_intx
+--    );
+--
+--msi_irq_btn_debounce : debounce
+--generic map
+--    ( DB_Cnt => 6250000) -- 50ms
+--port map(
+--    Reset   => not internal_wb_rstn, 
+--    Clk     => internal_wb_clk,
+--    DB_In   => not debug_i(1),
+--    DB_Out  => irq_button_msi
+--    );
+--
+---- rising edge detection for buttons, on button release
+--p_button_red: process(internal_wb_clk)
+--begin
+--	if rising_edge(internal_wb_clk) then
+--    if(internal_wb_rstn = '0') then
+--      s_msi_irq_button_reg <= "00";
+--      s_msi_irq_button_red <= '0';
+--    else
+--      s_msi_irq_button_reg  <= irq_button_msi & s_msi_irq_button_reg(1); -- shift right
+--
+--      if s_msi_irq_button_reg(0) = '0' and s_msi_irq_button_reg(1)= '1' then
+--        s_msi_irq_button_red <= '1';
+--      else
+--        s_msi_irq_button_red <= '0';
+--      end if;
+--    end if;  
+--  end if; -- clk
+--end process p_button_red;
+--
+--  -- trigger MSI IRQ when CPLD button released
+--  app_msi_req <= s_msi_irq_button_red;
+--
+--
+--  -- trigger INTx IRQ when FPGA button pressed and IRQs enabled in CONTROL_REGISTER_HIGH (r_int)
+--  app_int_sts <= irq_button_intx and r_int;
 
 
 -------------------------------------------------------------------------------------
