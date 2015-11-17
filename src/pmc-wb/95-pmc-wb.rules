@@ -1,0 +1,3 @@
+SUBSYSTEM=="wbm", GROUP="wishbone", MODE="0660"
+SUBSYSTEM=="wbs", GROUP="wishbone", MODE="0660"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVERS=="wishbone_serial", GROUP="wishbone", MODE="0660"
