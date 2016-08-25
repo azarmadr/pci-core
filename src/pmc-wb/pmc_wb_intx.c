@@ -76,14 +76,14 @@ static void wb_cycle(struct wishbone* wb, int on)
 	dev = container_of(wb, struct pmc_wb_dev, wb);
 	control = dev->pci_res[0].addr;
 	
-	if (on) mutex_lock(&dev->mutex);
+	//if (on) mutex_lock(&dev->mutex);
 	
 	if (unlikely(debug))
 		printk(KERN_ALERT PMC_WB ": cycle(%d)\n", on);
 	
 	iowrite32((on?0x80000000UL:0) + 0x40000000UL, control + CONTROL_REGISTER_HIGH);
 	
-	if (!on) mutex_unlock(&dev->mutex);
+	//if (!on) mutex_unlock(&dev->mutex);
 }
 
 static void wb_byteenable(struct wishbone* wb, unsigned char be)
@@ -410,7 +410,7 @@ static int probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev->msi = 0; // defined by module parameter, 0 disabled
 	dev->wb.wops = &wb_ops;
 	dev->wb.parent = &pdev->dev;
-	mutex_init(&dev->mutex);
+	//mutex_init(&dev->mutex);
 	dev->window_offset = 0;
 	dev->low_addr = 0;
 	dev->width = 4;

@@ -55,7 +55,7 @@ struct pmc_wb_dev {
 	int    msi;
 	
 	struct wishbone wb;
-	struct mutex mutex; /* only one user can open a cycle at a time */
+	//struct mutex mutex; /* only one user can open a cycle at a time */
 	unsigned int window_offset;
 	unsigned int low_addr, width, shift;
 };
