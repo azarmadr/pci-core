@@ -13,6 +13,23 @@ use work.genram_pkg.all;
 package wb_pmc_host_bridge_pkg is
 
 
+  constant c_pmc_msi : t_sdb_msi := (
+--    abi_class     => x"0000", -- undocumented device
+--    abi_ver_major => x"01",
+--    abi_ver_minor => x"01",
+    wbd_endian    => c_sdb_endian_big,
+    wbd_width     => x"4", -- 32-bit port granularity
+    sdb_component => (
+    addr_first    => x"0000000000000000",
+    addr_last     => x"000000000000ffff",
+    product => (
+    vendor_id     => x"0000000000000651", -- GSI
+    device_id     => x"94ECf80C",
+    version       => x"00000001",
+    date          => x"20150115", 
+    name          => "PCI-Bridge-MSI-Tgt "))); 
+
+
   component wb_pmc_host_bridge
     generic(
       g_family   : string := "Arria V";
@@ -64,20 +81,6 @@ package wb_pmc_host_bridge_pkg is
     );
   end component;
   
-  constant c_pmc_msi : t_sdb_msi := (
---    abi_class     => x"0000", -- undocumented device
---    abi_ver_major => x"01",
---    abi_ver_minor => x"01",
-    wbd_endian    => c_sdb_endian_big,
-    wbd_width     => x"4", -- 32-bit port granularity
-    sdb_component => (
-    addr_first    => x"0000000000000000",
-    addr_last     => x"00000000000000ff",
-    product => (
-    vendor_id     => x"0000000000000651", -- GSI
-    device_id     => x"94ECf80C",
-    version       => x"00000001",
-    date          => x"20150115", 
-    name          => "PCI-Bridge-MSI-Tgt "))); 
+
 
 end wb_pmc_host_bridge_pkg;
