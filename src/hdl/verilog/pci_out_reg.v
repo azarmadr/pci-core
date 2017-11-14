@@ -85,8 +85,8 @@ input   reset_in,
 output dat_out ;
 output en_out ;
 
-reg dat_out,
-    en_out ;
+(* keep = "true" *) reg dat_out,
+                    en_out ;
 
 `ifdef ACTIVE_LOW_OE
 wire en = ~en_in ;
