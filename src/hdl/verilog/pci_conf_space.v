@@ -358,21 +358,153 @@ reg [10: 0] spoci_cs_adr   ;
 reg [ 7: 0] spoci_cs_dat   ;
 `endif
 
+
 // MSI registers outputs
 `ifdef MSI_CAPABILITY_EN
 
+
+	// sync msi registers from pci clock domain to wb clock domain
+
+  reg  [2:0] r_pcis_sync_ctrl ;
+  reg  [2:0] r_wbs_sync_ctrl  ;
+
+  wire pcis_sync_we;
+  wire wbs_sync_we;
+
+  // register for sync and delay
+  always@(posedge pci_clk or posedge reset)
+  begin
+    if (reset)
+      r_pcis_sync_ctrl <= 3'b0;
+    else
+      begin
+        r_pcis_sync_ctrl[1:0] <= {r_pcis_sync_ctrl[0], r_wbs_sync_ctrl[1]} ;
+        r_pcis_sync_ctrl[2]   <= ~r_pcis_sync_ctrl[1] ;
+      end
+  end
+
+  // generate we on pci side (inverted value only on pci side for self start)
+  assign pcis_sync_we = r_pcis_sync_ctrl[2]^(~r_pcis_sync_ctrl[1]);
+
+
+  // register for sync and delay
+  always@(posedge wb_clk or posedge reset)
+  begin
+    if (reset)
+        r_wbs_sync_ctrl <= 3'b0;
+    else
+        r_wbs_sync_ctrl[2:0] <= {r_wbs_sync_ctrl[1:0], ~r_pcis_sync_ctrl[1]} ;
+  end
+
+  assign wbs_sync_we = r_wbs_sync_ctrl[2] ^ r_wbs_sync_ctrl[1];
+
+
   output  [31 : 0]				msi_control;
   reg     [31 : 0]				r_msi_control;
-  assign msi_control  = r_msi_control;
+  reg     [31 : 0]				r_msi_control_pcis;
+  reg     [31 : 0]				r_msi_control_wbs;
+
+  // store register value in the pci clock domain
+  always@(posedge pci_clk or posedge reset)
+  begin
+    if (reset)
+        r_msi_control_pcis <= 32'h00000000 ;
+    else
+      begin
+        if (pcis_sync_we) 
+	        r_msi_control_pcis <= r_msi_control ;
+        else
+          r_msi_control_pcis <= r_msi_control_pcis;
+      end
+  end 
+
+  // store msi register value from pci to wb clock domain
+  always@(posedge wb_clk or posedge reset)
+  begin
+    if (reset)
+        r_msi_control_wbs <= 32'h00000000 ;
+    else
+      begin
+  	    if (wbs_sync_we) 
+	        r_msi_control_wbs <= r_msi_control_pcis ;
+        else
+            r_msi_control_wbs <= r_msi_control_wbs;
+      end
+  end
+
+  assign msi_control  = r_msi_control_wbs;
+
 
   output  [31 : 0]				msi_address;
   reg     [31 : 0]				r_msi_address;
-  assign msi_address = r_msi_address;
+  reg     [31 : 0]				r_msi_address_pcis;
+  reg     [31 : 0]				r_msi_address_wbs;
+
+  always@(posedge pci_clk or posedge reset)
+  begin
+    if (reset)
+        r_msi_address_pcis <= 32'h00000000 ;
+    else
+      begin
+      	if (pcis_sync_we) 
+	        r_msi_address_pcis <= r_msi_address ;
+        else
+            r_msi_address_pcis <= r_msi_address_pcis;
+      end 
+  end
+
+  // store msi register value from pci to wb clock domain
+  always@(posedge wb_clk or posedge reset)
+  begin
+    if (reset)
+      r_msi_address_wbs <= 32'h00000000 ;
+    else
+      begin
+      	if (wbs_sync_we) 
+	        r_msi_address_wbs <= r_msi_address_pcis ;
+        else
+            r_msi_address_wbs <= r_msi_address_wbs;
+      end 
+  end
+
+  assign msi_address = r_msi_address_wbs;
 
   output  [15 : 0]				msi_msg_data;
   reg     [15 : 0]				r_msi_msg_data;
-  assign  msi_msg_data = r_msi_msg_data;
-  
+  reg     [15 : 0]				r_msi_msg_data_pcis;
+  reg     [15 : 0]				r_msi_msg_data_wbs;
+
+  // store register value in the pci clock domain
+  always@(posedge pci_clk or posedge reset)
+  begin
+    if (reset)
+        r_msi_msg_data_pcis <= 32'h00000000 ;
+    else
+      begin
+  	    if (pcis_sync_we) 
+    	    r_msi_msg_data_pcis <= r_msi_msg_data ;
+        else
+            r_msi_msg_data_pcis <= r_msi_msg_data_pcis;
+      end
+  end
+
+  // store msi register value from pci to wb clock domain
+  always@(posedge wb_clk or posedge reset)
+  begin
+    if (reset)
+        r_msi_msg_data_wbs <= 32'h00000000 ;
+    else
+	    begin
+        if (wbs_sync_we) 
+	        r_msi_msg_data_wbs <= r_msi_msg_data_pcis ;
+        else
+          r_msi_msg_data_wbs <= r_msi_msg_data_wbs;
+    end    
+  end
+
+  assign  msi_msg_data = r_msi_msg_data_wbs;
+
+ 
 `endif
 
 /*###########################################################################################################
