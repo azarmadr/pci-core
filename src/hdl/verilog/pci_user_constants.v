@@ -99,10 +99,10 @@
 // If RAM_DONT_SHARE is defined, then all RAM address lengths must be specified accordingly, otherwise there are two relevant lengths - PCI_FIFO_RAM_ADDR_LENGTH and
 // WB_FIFO_RAM_ADDR_LENGTH.
 
-`define WBW_ADDR_LENGTH 3
-`define WBR_ADDR_LENGTH 3
-`define PCIW_ADDR_LENGTH 3
-`define PCIR_ADDR_LENGTH 3
+`define WBW_ADDR_LENGTH 8
+`define WBR_ADDR_LENGTH 8
+`define PCIW_ADDR_LENGTH 8
+`define PCIR_ADDR_LENGTH 8
 
 `define FPGA
 //`define XILINX
