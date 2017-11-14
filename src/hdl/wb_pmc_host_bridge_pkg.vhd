@@ -33,6 +33,7 @@ package wb_pmc_host_bridge_pkg is
   component wb_pmc_host_bridge
     generic(
       g_family   : string := "Arria V";
+      g_fast_ack : boolean := true;
       g_sdb_addr : t_wishbone_address);
     port (
     -- FPGA signals
@@ -75,8 +76,8 @@ package wb_pmc_host_bridge_pkg is
       -- PCI signals (optional) - interrupts pins
       inta_o        : out   std_logic;
 
-    debug_i       : in  std_logic_vector(7 downto 0);
-    debug_o       : out std_logic_vector(7 downto 0)
+    debug_i       : in  std_logic_vector(15 downto 0);
+    debug_o       : out std_logic_vector(15 downto 0)
 
     );
   end component;
